@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="utf-8">
+  
+
+  
+  <title>iOS 内存分配、管理和泄漏检测 | BIGGILL</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="description" content="1. 内存分配分类physical memory：物理内存就是实际的物理内存，现在的操作系统都不会直接去操作物理内存 virtual memory：虚拟内存每当启动一个进程的时候都会创建一个logical address space，也叫虚拟地址空间，和物理内存或者其他应用程序的虚拟地址都不对称。 resident memory 常驻内存程序占用的物理内存 clean memory 干净内存可以被">
+<meta property="og:type" content="article">
+<meta property="og:title" content="iOS 内存分配、管理和泄漏检测">
+<meta property="og:url" content="https://tangzeng.github.io/2019/05/09/iOS 内存分配、管理和MLeakFinder源码分析/index.html">
+<meta property="og:site_name" content="BIGGILL">
+<meta property="og:description" content="1. 内存分配分类physical memory：物理内存就是实际的物理内存，现在的操作系统都不会直接去操作物理内存 virtual memory：虚拟内存每当启动一个进程的时候都会创建一个logical address space，也叫虚拟地址空间，和物理内存或者其他应用程序的虚拟地址都不对称。 resident memory 常驻内存程序占用的物理内存 clean memory 干净内存可以被">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://upload-images.jianshu.io/upload_images/852671-bfce828e011182bc.png">
+<meta property="og:image" content="https://upload-images.jianshu.io/upload_images/1609713-58b239e26765906a.png">
+<meta property="og:image" content="https://blog.devtang.com/images/memory-cycle-1.png">
+<meta property="og:updated_time" content="2019-09-21T11:16:34.179Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="iOS 内存分配、管理和泄漏检测">
+<meta name="twitter:description" content="1. 内存分配分类physical memory：物理内存就是实际的物理内存，现在的操作系统都不会直接去操作物理内存 virtual memory：虚拟内存每当启动一个进程的时候都会创建一个logical address space，也叫虚拟地址空间，和物理内存或者其他应用程序的虚拟地址都不对称。 resident memory 常驻内存程序占用的物理内存 clean memory 干净内存可以被">
+<meta name="twitter:image" content="https://upload-images.jianshu.io/upload_images/852671-bfce828e011182bc.png">
+  
+    <link rel="alternate" href="/atom.xml" title="BIGGILL" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png">
+  
+  
+    <link href="//fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet" type="text/css">
+  
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+</html>
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">BIGGILL</a>
+      </h1>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+          <a id="nav-rss-link" class="nav-icon" href="/atom.xml" title="RSS Feed"></a>
+        
+        <a id="nav-search-btn" class="nav-icon" title="Search"></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="https://tangzeng.github.io"></form>
+      </div>
+    </div>
+  </div>
+</header>
+      <div class="outer">
+        <section id="main"><article id="post-iOS 内存分配、管理和MLeakFinder源码分析" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2019/05/09/iOS 内存分配、管理和MLeakFinder源码分析/" class="article-date">
+  <time datetime="2019-05-09T06:29:19.000Z" itemprop="datePublished">2019-05-09</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="article-title" itemprop="name">
+      iOS 内存分配、管理和泄漏检测
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <h2 id="1-内存分配"><a href="#1-内存分配" class="headerlink" title="1. 内存分配"></a>1. 内存分配</h2><h3 id="分类"><a href="#分类" class="headerlink" title="分类"></a>分类</h3><h5 id="physical-memory：物理内存"><a href="#physical-memory：物理内存" class="headerlink" title="physical memory：物理内存"></a><strong>physical memory</strong>：物理内存</h5><p>就是实际的物理内存，现在的操作系统都不会直接去操作物理内存</p>
+<h5 id="virtual-memory：虚拟内存"><a href="#virtual-memory：虚拟内存" class="headerlink" title="virtual memory：虚拟内存"></a><strong>virtual memory</strong>：虚拟内存</h5><p>每当启动一个进程的时候都会创建一个logical address space，也叫虚拟地址空间，和物理内存或者其他应用程序的虚拟地址都不对称。</p>
+<h5 id="resident-memory-常驻内存"><a href="#resident-memory-常驻内存" class="headerlink" title="resident memory 常驻内存"></a><strong>resident memory</strong> 常驻内存</h5><p>程序占用的物理内存</p>
+<h5 id="clean-memory-干净内存"><a href="#clean-memory-干净内存" class="headerlink" title="clean memory 干净内存"></a><strong>clean memory</strong> 干净内存</h5><p>可以被重新创建利用的内存, 在iOS的应用有:</p>
+<ul>
+<li>system framework</li>
+<li>二进制可执行文件</li>
+<li>内存映射文件</li>
+</ul>
+<p>当APP链接到框架时，<strong>clean memory</strong>将增加框架二进制文件的大小。但大多数时候，只有部分二进制文件才真正加载到物理内存中。因为<strong>clean memory</strong>是只读的，APP之间可以共享framework以及library。</p>
+<h5 id="dirty-memory-脏内存"><a href="#dirty-memory-脏内存" class="headerlink" title="dirty memory 脏内存"></a><strong>dirty memory</strong> 脏内存</h5><p>无法由系统重新创建利用的内存。当存在内存压力时，系统将清理回收一些<strong>clean memory</strong>，当再次需要内存时，系统将重新创建它们。但是对于<strong>dirty memory</strong>, 系统无法卸载它们，并且iOS没有交换机制，因此脏内存将始终保存在物理内存中，直到达到一定限度，然后您的应用程序将被终止才能被系统回收。</p>
+<h5 id="resident-memory-常驻内存-1"><a href="#resident-memory-常驻内存-1" class="headerlink" title="resident memory 常驻内存"></a><strong>resident memory</strong> 常驻内存</h5><p>就是是真正加载到<strong>physical memory</strong>中的内存<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">virtual memory = clean memory + dirty memory.</span><br><span class="line"></span><br><span class="line">resident memory = dirty memory + clean memory that loaded in physical memory</span><br><span class="line"></span><br><span class="line">virtual memory == (clean memory + dirty memory) &gt; resident memory &gt; dirty memory</span><br></pre></td></tr></table></figure></p>
+<h3 id="内存分页"><a href="#内存分页" class="headerlink" title="内存分页"></a>内存分页</h3><p>计算机会对虚拟内存地址空间（32位为4G）分页产生页（Page），对物理内存地址空间分页产生页帧（Page Frame），这个页和页帧的大小是一样大的（老的设备上都是4Kb)。计算机的MMU上有一个页表（Page Table），就是映射虚拟内存页到物理内存页的，更确切的说是页号到页帧号的映射，而且是一对一的映射。由于一般情况下虚拟内存 &gt; 物理内存， 因此虚拟内存页的个数 &gt; 物理内存页帧的个数, 因此并不是所有的 Page 都会映射到物理内存中。每个虚拟内存的Page 有三种状态：</p>
+<ul>
+<li>Nonresident</li>
+</ul>
+<p>是否 Resident 是一个 Page 状态的重要标识，如果 Page 被映射到内存里了，这个 Page 就是 Resident 状态，否则就是 Nonresident 状态；</p>
+<ul>
+<li>Resident and clean</li>
+</ul>
+<p>clean memory that loaded in physical memory。这种 Page 由于是加载自不可变的文件，因此可以在物理内存紧张时被 iOS 自动 unload 出去，并且在需要的时候再重新从原来的文件加载到内存中。</p>
+<ul>
+<li>Resident and dirty</li>
+</ul>
+<p>凡是非 clean 的 Page 都是 dirty 的，它们的共同特点是 Page 在闪存中没有对应的文件，比如通过 alloc 在堆上创建的内存空间，已经解压的图片，database caches 等。dirty memory 不能被操作系统交换出去，只有在进程被杀死的时候才能被回收，因此在系统发生内存告警时，如果进程创建了大量的 dirty memory，那么将很有可能被 kill 掉。</p>
+<h4 id="举例说明"><a href="#举例说明" class="headerlink" title="举例说明"></a>举例说明</h4><ul>
+<li>Malloc 分配内存<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">// clean memory</span><br><span class="line">char *buf = malloc(100*1024*1024)</span><br><span class="line"></span><br><span class="line">// dirty memory</span><br><span class="line">for(int i=0; i &lt; 3*1024*1024; ++i)&#123;</span><br><span class="line">    buf[i] = rand()</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+<p>通过Intruments的Alloctions和VM tracker可以分析，首先申请了100M的虚拟内存，但是你只要不用，虚拟内存中的pages就处于Nonresident状态。后来for循环中，我们进行读写，操作系统就会分配3M的物理内存，这个时候该内存空间就处于Resident and dirty状态，而其他97M的虚拟内存空间是处于Nonresident状态。</p>
+<p>我们的程序平时大多都是直接访问的虚拟地址，虚拟地址需要经过映射才能访问到物理内存地址，映射过程：<br><img src="https://upload-images.jianshu.io/upload_images/852671-bfce828e011182bc.png" alt="img"></p>
+<ul>
+<li>MMU（内存管理单元）的两个寄存器在中间起到了强大的作用，界限寄存器用来判断是否越界，如果没有越界就会加上基址寄存器的值（页帧号和偏移量），转换为物理内存地址。</li>
+<li>如果越界了，就说明物理内存已经不够用，需要操作系统腾出空间。 操作系统有个页面失效（page fault）功能。操作系统找到一个最少使用的页帧，让他失效，并采用<strong>swap</strong>技术把它写入磁盘，随后把需要访问的页放到页帧中，并修改页表中的映射，然后就能实现物理内存地址的转换了。 </li>
+</ul>
+<p>ps：<strong>swap</strong>：将数据从物理内存移到磁盘被称为页面换出；将数据从磁盘移到物理内存被称为页面换入</p>
+<p>对于iOS来说，由于移动设备的闪存容量很有限，并且闪存的频繁读写很降低寿命，因此是无Swap机制的。所以当越界的时候，会直接报错， 并通过Jetsam来Kill掉优先级低的进程，。</p>
+<p><strong>Jetsam</strong>: 低内存处理机制Jetsam，这是一个基于优先级队列的机制。优先级由低到高是：IDLE（空闲）-&gt; BACKGROUND- &gt; FOREGROUND, 依次类推。当内存过低的时候，就会在队列中进行广播，希望大家尽量释放内存，如果一段时间后，仍然内存不够，就会开始Kill进程，直到内存够用。</p>
+<p>Jetsam里面有表明每个进程都有一个”high water mark” （HWM），超过这个值时就会触发 Jetsam 机制去 kill 这个进程。这时我就很好奇了，这个 HWM 的值究竟是多少呢？</p>
+<p><a href="https://www.jianshu.com/p/30f24bb91222" target="_blank" rel="noopener">1GB 的设备的HWM大致对应650M左右</a><br><a href="https://github.com/apple/darwin-xnu" target="_blank" rel="noopener">XNU源码</a><br><a href="https://satanwoo.github.io/2017/10/18/abort/" target="_blank" rel="noopener">JetSam探析</a><br><a href="https://junyixie.github.io/2018/04/10/iosoom/" target="_blank" rel="noopener">iOS OOM</a><br><a href="https://www.valiantcat.cn/index.php/2018/10/06/64.html" target="_blank" rel="noopener">iOS Memory Deep Dive</a><br><a href="http://newosxbook.com/articles/MemoryPressure.html" target="_blank" rel="noopener">Handling low memory conditions in iOS and Mavericks</a></p>
+<p>对于开发者来说，要想减少应用因内存告警被系统杀掉，应做到以下几点：</p>
+<ul>
+<li><p>该尽可能减少 dirty 内存的创建</p>
+</li>
+<li><p>要尽量保证 dirty 内存用完之后及时释放(ARC)</p>
+</li>
+<li><p>及时处理系统内存告警通知，释放掉大量占用内存并且可重建的对象</p>
+</li>
+<li><p>在发生内存告警时，不再持续申请内存，更不能申请较大块的内存</p>
+</li>
+</ul>
+<h2 id="2-iOS-内存管理"><a href="#2-iOS-内存管理" class="headerlink" title="2. iOS 内存管理"></a>2. iOS 内存管理</h2><h3 id="1-objective-c-对象的内存分配"><a href="#1-objective-c-对象的内存分配" class="headerlink" title="1. objective-c 对象的内存分配"></a>1. objective-c 对象的内存分配</h3><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">NSString *someString = @&quot;Some String&quot;;</span><br><span class="line">NSString *anotherString = someString;</span><br></pre></td></tr></table></figure>
+<p>我们表明上看起来似乎创建了两个<strong>NSString</strong>对象，其实它们二者是复用的关系, 上述代码只创建了一个<strong>NSString</strong>对象@”Some String”，它分配在堆中，需要进行内存管理。注意，我们并不是说这个字符串常量在堆上，而是创建一个OC对象需要的内存开销是在堆上，普通的字符串常量存在数据段的.rodata区。</p>
+<p><strong>someString</strong>和<strong>anotherString</strong>是两个指针<strong>**，它们存在于栈中，栈的管理由系统控制。这两个内存的大小刚好能够分别存下一个指针(在32位CPU上是4字节，在64位上是8字节)，而且两个内存中的值是一样的，即两个指针的值是一样的，于是两个指针指向同一个堆内存区域，从而导致</strong>someString<strong>和</strong>anotherString**这两个指针指向的是相同的字符串实例。</p>
+<p>总结： <strong>someString</strong>和<strong>anotherString</strong>分配在栈上，无需我们控制。<strong>NSString: @”Some String”</strong>分配在堆上，需要我们进行内存管理。根据OC的内存管理规则， <strong>someString</strong>和<strong>anotherString</strong> 都引用了<strong>NSString: @”Some String”</strong>， 因此retainCount = 2, 当someString和anotherString两个指针被系统自动释放之后，<strong>NSString: @”Some String”</strong> 的retainCount = 0， 根据引用计数规则，这个对象会被回收。</p>
+<p><img src="https://upload-images.jianshu.io/upload_images/1609713-58b239e26765906a.png" alt="img"></p>
+<p>OC对于普通的<strong>非对象类型</strong>的变量，比如<strong>CGRect</strong>结构，它们也会使用栈空间，而非对象类型所用的堆空间</p>
+<h3 id="2-自动释放池-autoreleasepool"><a href="#2-自动释放池-autoreleasepool" class="headerlink" title="2.自动释放池@autoreleasepool"></a>2.自动释放池@autoreleasepool</h3><p>OC对象的生命周期取决于引用计数，MRC模式下有<strong>两种方式</strong>可以释放对象：一种是直接调用<strong>release</strong>释放；另一种是调用<strong>autorelease</strong>将对象加入自动释放池中。自动释放池用于存放那些需要在稍后某个时刻释放的对象。</p>
+<h4 id="自动释放池的创建"><a href="#自动释放池的创建" class="headerlink" title="自动释放池的创建"></a>自动释放池的创建</h4><p>如果没有自动释放池而给对象发送autorelease消息，将会收到控制台报错。但一般我们无需担心自动释放池的创建问题。</p>
+<p>我们的Mac以及iOS系统会自动创建一些线程，例如主线程和GCD中的线程，都默认拥有自动释放池。<strong>每次执行 “事件循环”(event loop)时，就会将其清空</strong></p>
+<p>因此我们一般不需要手动创建自动释放池，通常只有一个地方需要它，那就是在<strong>main()</strong>函数里，如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">int main(int argc, char * argv[]) &#123;</span><br><span class="line">    @autoreleasepool &#123;</span><br><span class="line">        return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这个<strong>main()</strong>函数里面的池并非必需。因为块的末尾是应用程序的终止处，即便没有这个自动释放池，也会由操作系统来释放。但是这些由<strong>UIApplicationMain</strong>函数所自动释放的对象就没有池可以容纳了，系统会发出警告。因此，这里的池可以理解成<strong>最外围捕捉全部自动释放对象所用的池。</strong></p>
+<p><a href="[http://kimihe.com/2016/12/02/%E5%86%85%E5%AD%98%E4%B8%AD%E7%9A%84%E5%A0%86%E5%92%8C%E6%A0%88%E5%88%B0%E5%BA%95%E6%98%AF%E4%BB%80%E4%B9%88/](http://kimihe.com/2016/12/02/内存中的堆和栈到底是什么/">内存中的堆和栈到底是什么</a>)</p>
+<p><a href="http://kimihe.com/2016/12/03/深入总结iOS内存管理/" target="_blank" rel="noopener">iOS 内存管理</a></p>
+<h4 id="autoreleasepool-原理"><a href="#autoreleasepool-原理" class="headerlink" title="@autoreleasepool 原理"></a>@autoreleasepool 原理</h4><p>先看一个例子：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">for (int i = 0; i &lt; 1000000; i++) &#123;</span><br><span class="line">      NSString *str = @&quot;abc&quot;;</span><br><span class="line">      str = [str lowercaseString];</span><br><span class="line">      str = [str stringByAppendingString:@&quot;xyz&quot;];      </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这段代码在执行的时候，会出现内存突然升高的问题，可能导致crash，因为<strong>str</strong>在调用完方法后依然处于存活状态，因为目前它们都在自动释放池里，等待回收。但自动释放池却要等到该线程执行下一次事件循环时才会清空，这就意味着在执行for循环时，会有持续不断的新的临时对象被创建出来，并加入自动释放池。<strong>由于这些临时变量是存在heap里面的（他们的指针是在stack里面）</strong>，因此如果一直循环下去，heap大小会越来越大，要等到结束for循环才会释放。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">for (int i = 0; i &lt; 1000000; i++) &#123;</span><br><span class="line">        @autoreleasepool &#123;</span><br><span class="line">            NSString *str = @&quot;abc&quot;;</span><br><span class="line">            str = [str lowercaseString];</span><br><span class="line">            str = [str stringByAppendingString:@&quot;xyz&quot;];</span><br><span class="line">        &#125;        </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><strong>自动释放池的机制就像“栈”</strong>。系统创建好<strong>autoreleasepool</strong>之后，将其压入栈中，而清空自动释放池相当于将池从栈中弹出。将对象放入@autoreleasepool代码块中，就等于将其放入位于栈顶，系统在块的末尾将这些对象优先回收掉。每个循环结束后，内存用量不会累加升高。</p>
+<h3 id="3-关于retainCount"><a href="#3-关于retainCount" class="headerlink" title="3. 关于retainCount"></a>3. 关于retainCount</h3><h4 id="误区一"><a href="#误区一" class="headerlink" title="误区一"></a>误区一</h4><p>[object retainCount] 似乎可以返回某对象的保留计数，其实即便在MRC下，retainCount在实际编程过程中也并没有什么用。首要原因在于：它返回的保留计数只是某个时间点上的值</p>
+<p>例如：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">while ([object retainCount]) &#123;</span><br><span class="line">	[object release];</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>其中存在两个错误：<br>第一个就是没有考虑到自动释放操作，只是不停地release，直到对象被系统回收。假如此对象在自动释放池里，那么稍后系统在清理空池子时还要仔把它释放一次，这将导致程序崩溃。</p>
+<p>第二个错误就是：retainCount可能永远也不会减少到0。因为有时候系统会优化对象的释放行为，在保留计数还是1的时候就把它回收了。最后一次执行 release 时，系统知道马上就要回收内存了，就没有必要再将 retainCount 减 1 了，因为不管减不减 1，该对象都肯定会被回收，而对象被回收后，它的所有的内存区域，包括 retainCount 值也变得没有意义。不将这个值从 1 变成 0，可以减少一次内存的写操作，加速对象的回收。只有在系统不打算这么优化时，计数值才会递减址0。</p>
+<h4 id="误区二"><a href="#误区二" class="headerlink" title="误区二"></a>误区二</h4><p>如果我们打印一些字符串或者数值对象的retainCount，如下代码：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">NSString *string = @&quot;Apple&quot;;</span><br><span class="line">NSLog(@&quot;string retainCount: %lu&quot;, (unsigned long)[string retainCount]);</span><br><span class="line">    </span><br><span class="line">NSNumber *numberI = @1;</span><br><span class="line">NSLog(@&quot;numberI retainCount: %lu&quot;, (unsigned long)[numberI retainCount]);</span><br><span class="line">    </span><br><span class="line">NSNumber *numberF = @3.14f;</span><br><span class="line">NSLog(@&quot;numberF retainCount: %lu&quot;, (unsigned long)[numberF retainCount]);</span><br></pre></td></tr></table></figure>
+<p>其输出将会如下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">2016-12-04 20:04:51.007 tmp[1522:138528] string retainCount: 18446744073709551615</span><br><span class="line">2016-12-04 20:04:51.008 tmp[1522:138528] numberI retainCount: 9223372036854775807</span><br><span class="line">2016-12-04 20:04:51.008 tmp[1522:138528] numberF retainCount: 1</span><br></pre></td></tr></table></figure>
+<p>我们发现结果非常奇怪。怎么回事呢？</p>
+<p>第一个string的保留计数其实为2的64次方-1，而第二个numberI是2的63次方-1。二者皆为<strong>“单例对象”</strong>(singleton object)，所以保留计数都很大。</p>
+<p>系统会尽可能地把NSString实现成单例对象。像上述代码中的字符串，其实是一个编译期常量，编译器会把NSString对象所表示的数据放到应用程序的二进制文件里，这样的话，运行程序时<strong>就能直接用了。</strong>这一点对应到底层的话，隶属于程序的可执行文件中<strong>数据段的.rodata小段</strong>的作用，如果你阅读过开头笔者提到的<a href="http://kimihe.com/2016/12/02/内存中的堆和栈到底是什么/" target="_blank" rel="noopener">《内存中的堆和栈到底是什么》</a>这篇文章，应该可以很容易理解。</p>
+<p>NSNumber也类似，它使用了一种叫做“标签指针”(<strong>tagged pointer</strong>)的概念来标注特定类型的数值。关于<strong>tagged pointer</strong>，可以阅读这篇唐巧的文章：<a href="http://www.infoq.com/cn/articles/deep-understanding-of-tagged-pointer/" target="_blank" rel="noopener">深入理解Tagged Pointer</a>。</p>
+<p><strong>tagged pointer</strong>不使用NSNumber对象，而是把数值有关的全部消息都放在指针值里面。运行期系统会在消息派发期间检测到这种标签指针，并对它执行相应操作，使其行为看上去和真正的NSNumber对象一样。这种优化只在某些场合使用，比如上述代码中的浮点数对象就没有优化，所以保留计数就是1。</p>
+<p>上述的这种单例对象，其保留计数绝对不会变。这种对象的保留及释放操作都是“空操作”(noop)。</p>
+<h4 id="循环引用（Reference-Cycle）问题"><a href="#循环引用（Reference-Cycle）问题" class="headerlink" title="循环引用（Reference Cycle）问题"></a>循环引用（Reference Cycle）问题</h4><p>引用计数这种管理内存的方式虽然很简单，但是有一个比较大的瑕疵，即它不能很好的解决循环引用问题。如下图所示：对象 A 和对象 B，相互引用了对方作为自己的成员变量，只有当自己销毁时，才会将成员变量的引用计数减 1。因为对象 A 的销毁依赖于对象 B 销毁，而对象 B 的销毁与依赖于对象 A 的销毁，这样就造成了我们称之为循环引用（Reference Cycle）的问题，这两个对象即使在外界已经没有任何指针能够访问到它们了，它们也无法被释放。</p>
+<p><img src="https://blog.devtang.com/images/memory-cycle-1.png" alt="img"></p>
+<h4 id="弱引用"><a href="#弱引用" class="headerlink" title="弱引用"></a>弱引用</h4><p>弱引用虽然持有对象，但是并不增加引用计数，这样就避免了循环引用的产生。它的实现原理：系统对于每一个有弱引用的对象，都维护一个表来记录它所有的弱引用的指针地址。这样，当一个对象的引用计数为 0 时，系统就通过这张表，找到所有的弱引用指针，继而把它们都置成 nil。</p>
+<h2 id="3-内存泄漏的检测和MLeaksFinder"><a href="#3-内存泄漏的检测和MLeaksFinder" class="headerlink" title="3. 内存泄漏的检测和MLeaksFinder"></a>3. 内存泄漏的检测和MLeaksFinder</h2><h4 id="1、MLeakFinder简介"><a href="#1、MLeakFinder简介" class="headerlink" title="1、MLeakFinder简介"></a>1、MLeakFinder简介</h4><h4 id="·-背景"><a href="#·-背景" class="headerlink" title="· 背景"></a>· 背景</h4><p>平常我们都会用 Instrument 的 Leaks / Allocations 进行内存泄露的排查。但是 Leaks / Allocations 用起来会比较麻烦，而且是一个被动型工具，需要我们事先猜测哪些地方发生了内存泄漏才会去用它们去定位，而MLeaksFinder用起来会更简单直白，更改完代码后一运行即能发现，当发生内存泄露时，MLeaksFinder 会主动触发断言，弹出alert准确的告诉你哪个对象泄露了, 结合Memory Graph 能迅速定位内存泄漏的代码。</p>
+<h4 id="·-用法"><a href="#·-用法" class="headerlink" title="· 用法"></a>· 用法</h4><p>把 MLeaksFinder 目录下的文件添加到你的项目中，就可以在运行时（debug 模式下）帮助你检测项目里的内存泄露了，无需修改任何业务逻辑代码，而且只在 debug 下开启，完全不影响你的 release 包。</p>
+<p>中断言时，控制台会有如下提示，View-ViewController stack 从上往下看，该 stack 告诉你，MyTableViewController 的 UITableView 的 subview UITableViewWrapperView 的 subview MyTableViewCell 没被释放。而且，这里我们可以肯定的是 MyTableViewController，UITableView，UITableViewWrapperView 这三个已经成功释放了。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">*** Terminating app due to uncaught exception &apos;NSInternalInconsistencyException&apos;, reason: &apos;Possibly Memory Leak.</span><br><span class="line">In case that MyTableViewCell should not be dealloced, override -willDealloc in MyTableViewCell by returning NO.</span><br><span class="line">View-ViewController stack: (</span><br><span class="line">    MyTableViewController,</span><br><span class="line">    UITableView,</span><br><span class="line">    UITableViewWrapperView,</span><br><span class="line">    MyTableViewCell</span><br><span class="line">)&apos;</span><br></pre></td></tr></table></figure>
+<h4 id="·-原理"><a href="#·-原理" class="headerlink" title="· 原理"></a>· 原理</h4><p>MLeaksFinder 一开始从 UIViewController 入手。我们知道，正常情况下当一个 UIViewController 被 pop 或 dismiss 后，该 UIViewController 包括它的 view，view 的 subviews 等等将很快被释放（除非你把它设计成单例，或者持有它的强引用，但一般很少这样做）。于是，我们只需在一个 ViewController 被 pop 或 dismiss 一小段时间后，看看该 UIViewController，它的 view，view 的 subviews 等等是否还存在。</p>
+<p>因此，MLeaksFinder为基类 NSObject 添加一个方法 <code>-willDealloc</code> 方法，该方法的作用是，先用一个弱指针指向 self，并在一小段时间(2秒)后，通过这个弱指针调用 <code>-assertNotDealloc</code>，而 <code>-assertNotDealloc</code> 主要作用是直接中断言。ViewController执行viewDidDisappear后，如果两秒后对象释放，strongSelf为nil，若不为nil, 则认为当前对象发生了内存泄漏</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">- (BOOL)willDealloc &#123;</span><br><span class="line">        __weak id weakSelf = self;</span><br><span class="line">    dispatch_after(...2s..., ^&#123;</span><br><span class="line">        __strong id strongSelf = weakSelf;</span><br><span class="line">        //ViewController执行viewDidDisappear后，如果两秒后对象释放，strongSelf为nil，否则认为当前对象发生了内存泄漏</span><br><span class="line">        [strongSelf assertNotDealloc];</span><br><span class="line">    &#125;);</span><br><span class="line">   return YES;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">- (void)assertNotDealloc &#123;</span><br><span class="line">     NSAssert(NO, @“”);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这样，当我们认为某个对象应该要被释放了，在释放前调用这个方法，如果2秒后它被释放成功，weakSelf 就指向 nil，不会调用到 <code>-assertNotDealloc</code> 方法，也就不会中断言，如果它没被释放（泄露了），<code>-assertNotDealloc</code> 就会被调用中断言。这样，当一个 UIViewController 被 pop 或 dismiss 时（我们认为它应该要被释放了），我们遍历该 UIViewController 上的所有 view，依次调 <code>-willDealloc</code>，若3秒后没被释放，就会中断言。</p>
+<h4 id="·手动扩展"><a href="#·手动扩展" class="headerlink" title="·手动扩展"></a>·手动扩展</h4><p>MLeaksFinder不仅可以检测 ViewController 跟 View 对象。MLeaksFinder 提供了一个手动扩展的机制，可以在UIViewController中检测其它类型的对象的内存泄露。如下所示，我们可以检测 UIViewController 底下的 View Model：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">- (BOOL)willDealloc &#123;</span><br><span class="line">    if (![super willDealloc]) &#123;</span><br><span class="line">        return NO;</span><br><span class="line">    &#125;</span><br><span class="line">    MLCheck(self.viewModel);</span><br><span class="line">    return YES;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>这里的原理跟上面的是一样的，宏 MLCheck() 做的事就是为传进来的对象建立 View-ViewController stack 信息，并对传进来的对象调用 <code>-willDealloc</code> 方法。</p>
+<h3 id="2-源码分析"><a href="#2-源码分析" class="headerlink" title="2. 源码分析"></a>2. <a href="https://github.com/tangzeng/MultiDeviceCooperate/tree/master/%E6%BA%90%E7%A0%81/MLeaksFinder-master" target="_blank" rel="noopener">源码分析</a></h3>
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="https://tangzeng.github.io/2019/05/09/iOS 内存分配、管理和MLeakFinder源码分析/" data-id="ck9ga54cn0000urvrre6w9age" class="article-share-link">Share</a>
+      
+      
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+  
+    <a href="/2019/03/21/OC 关键字分析/" id="article-nav-older" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Older</strong>
+      <div class="article-nav-title">OC 关键字分析</div>
+    </a>
+  
+</nav>
+
+  
+</article>
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+
+  
+    
+
+  
+    
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Archives</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/05/">May 2019</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/03/">March 2019</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/02/">February 2019</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2019/05/09/iOS 内存分配、管理和MLeakFinder源码分析/">iOS 内存分配、管理和泄漏检测</a>
+          </li>
+        
+          <li>
+            <a href="/2019/03/21/OC 关键字分析/">OC 关键字分析</a>
+          </li>
+        
+          <li>
+            <a href="/2019/02/21/runloop/">RunLoop的理解</a>
+          </li>
+        
+          <li>
+            <a href="/2019/02/15/转载WWDC-2018：iOS-内存深入研究/">转载 WWDC 2018：iOS 内存深入研究</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      &copy; 2020 BIGGILL<br>
+      Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+  <link rel="stylesheet" href="/fancybox/jquery.fancybox.css">
+  <script src="/fancybox/jquery.fancybox.pack.js"></script>
+
+
+<script src="/js/script.js"></script>
+
+
+
+  </div>
+</body>
+</html>

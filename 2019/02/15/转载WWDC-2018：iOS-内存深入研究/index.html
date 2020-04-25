@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+<head><meta name="generator" content="Hexo 3.9.0">
+  <meta charset="utf-8">
+  
+
+  
+  <title>转载 WWDC 2018：iOS 内存深入研究 | BIGGILL</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="description" content="完全摘自下文，只为记录用  WWDC 2018 Session 416：iOS Memory Deep Dive  引言对于我们的 App 所依赖的设备而言，内存资源是有限的。降低 App 所使用的内存可以提高性能和体验，相反，过大的内存占用可能会导致 App 被系统强制退出。所以每个 iOS 开发者都应该关注内存问题。这一节新的内容不多，基本上都是一些老的知识点。 按照 Session 的套路，">
+<meta property="og:type" content="article">
+<meta property="og:title" content="转载 WWDC 2018：iOS 内存深入研究">
+<meta property="og:url" content="https://tangzeng.github.io/2019/02/15/转载WWDC-2018：iOS-内存深入研究/index.html">
+<meta property="og:site_name" content="BIGGILL">
+<meta property="og:description" content="完全摘自下文，只为记录用  WWDC 2018 Session 416：iOS Memory Deep Dive  引言对于我们的 App 所依赖的设备而言，内存资源是有限的。降低 App 所使用的内存可以提高性能和体验，相反，过大的内存占用可能会导致 App 被系统强制退出。所以每个 iOS 开发者都应该关注内存问题。这一节新的内容不多，基本上都是一些老的知识点。 按照 Session 的套路，">
+<meta property="og:locale" content="default">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/164041e795b2a95b?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/164042169161e54e?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640421aa92f210f?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640422064a09ba4?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/164042449bd284b1?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640424733a719c1?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640424a1ee283d0?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640424733a719c1?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640425425a38784?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640425940d45833?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640425b9de376b7?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/164042608af528f6?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/16404263cec1a5e4?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640426bf2ee2c32?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640427078bb7082?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/164042737dda0bc6?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/16404276c0751a57?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/16404279abc8d6df?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640427c6bb55479?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/164042805f87874e?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640428289ab7fb8?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/164042861839e00d?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/16404288b324ee3c?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640428bbf71c2a3?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:image" content="https://user-gold-cdn.xitu.io/2018/6/15/1640428dc90d1458?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+<meta property="og:updated_time" content="2019-09-21T11:16:34.179Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="转载 WWDC 2018：iOS 内存深入研究">
+<meta name="twitter:description" content="完全摘自下文，只为记录用  WWDC 2018 Session 416：iOS Memory Deep Dive  引言对于我们的 App 所依赖的设备而言，内存资源是有限的。降低 App 所使用的内存可以提高性能和体验，相反，过大的内存占用可能会导致 App 被系统强制退出。所以每个 iOS 开发者都应该关注内存问题。这一节新的内容不多，基本上都是一些老的知识点。 按照 Session 的套路，">
+<meta name="twitter:image" content="https://user-gold-cdn.xitu.io/2018/6/15/164041e795b2a95b?imageView2/0/w/1280/h/960/format/webp/ignore-error/1">
+  
+    <link rel="alternate" href="/atom.xml" title="BIGGILL" type="application/atom+xml">
+  
+  
+    <link rel="icon" href="/favicon.png">
+  
+  
+    <link href="//fonts.googleapis.com/css?family=Source+Code+Pro" rel="stylesheet" type="text/css">
+  
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+</html>
+<body>
+  <div id="container">
+    <div id="wrap">
+      <header id="header">
+  <div id="banner"></div>
+  <div id="header-outer" class="outer">
+    <div id="header-title" class="inner">
+      <h1 id="logo-wrap">
+        <a href="/" id="logo">BIGGILL</a>
+      </h1>
+      
+    </div>
+    <div id="header-inner" class="inner">
+      <nav id="main-nav">
+        <a id="main-nav-toggle" class="nav-icon"></a>
+        
+          <a class="main-nav-link" href="/">Home</a>
+        
+          <a class="main-nav-link" href="/archives">Archives</a>
+        
+      </nav>
+      <nav id="sub-nav">
+        
+          <a id="nav-rss-link" class="nav-icon" href="/atom.xml" title="RSS Feed"></a>
+        
+        <a id="nav-search-btn" class="nav-icon" title="Search"></a>
+      </nav>
+      <div id="search-form-wrap">
+        <form action="//google.com/search" method="get" accept-charset="UTF-8" class="search-form"><input type="search" name="q" class="search-form-input" placeholder="Search"><button type="submit" class="search-form-submit">&#xF002;</button><input type="hidden" name="sitesearch" value="https://tangzeng.github.io"></form>
+      </div>
+    </div>
+  </div>
+</header>
+      <div class="outer">
+        <section id="main"><article id="post-转载WWDC-2018：iOS-内存深入研究" class="article article-type-post" itemscope itemprop="blogPost">
+  <div class="article-meta">
+    <a href="/2019/02/15/转载WWDC-2018：iOS-内存深入研究/" class="article-date">
+  <time datetime="2019-02-15T06:29:19.000Z" itemprop="datePublished">2019-02-15</time>
+</a>
+    
+  </div>
+  <div class="article-inner">
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 class="article-title" itemprop="name">
+      转载 WWDC 2018：iOS 内存深入研究
+    </h1>
+  
+
+      </header>
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p>完全摘自下文，只为记录用</p>
+<blockquote>
+<p>WWDC 2018 Session 416：<a href="https://link.juejin.im/?target=https%3A%2F%2Fdeveloper.apple.com%2Fvideos%2Fplay%2Fwwdc2018%2F416%2F" target="_blank" rel="noopener">iOS Memory Deep Dive</a></p>
+</blockquote>
+<h2 id="引言"><a href="#引言" class="headerlink" title="引言"></a>引言</h2><p>对于我们的 App 所依赖的设备而言，内存资源是有限的。降低 App 所使用的内存可以提高性能和体验，相反，过大的内存占用可能会导致 App 被系统强制退出。所以每个 iOS 开发者都应该关注内存问题。这一节新的内容不多，基本上都是一些老的知识点。</p>
+<p>按照 Session 的套路，我们先看一下提纲：</p>
+<ul>
+<li>为什么要减少内存使用</li>
+<li>内存占用</li>
+<li>分析内存占用工具</li>
+<li>图像</li>
+<li>在后台时，对内存优化</li>
+<li>演示 Demo</li>
+</ul>
+<p>那我们就按顺序开始啦！</p>
+<h2 id="为什么要减少内存"><a href="#为什么要减少内存" class="headerlink" title="为什么要减少内存"></a>为什么要减少内存</h2><p>在探讨内存之前，我们要知道为什么要减少内存。简单的回答是可以有更好的用户体验：更快的启动速度，不会因为内存过大而导致 Crash，可以让 App 存活更久等。</p>
+<h2 id="内存占用"><a href="#内存占用" class="headerlink" title="内存占用"></a>内存占用</h2><p>并非所有 App 的内存占用都是相同的。在继续探讨 iOS 上 App 的内存使用之前，我们先来聊一下<code>Pages Memory</code>。</p>
+<h3 id="Pages-Memory"><a href="#Pages-Memory" class="headerlink" title="Pages Memory"></a>Pages Memory</h3><p>内存是由系统管理，一般以页为单位来划分。在 iOS 上，每一页包含 16KB 的空间。一段数据可能会占用多页内存，所占用页总数乘以每页空间得到的就是这段数据使用的总内存。</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/164041e795b2a95b?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>内存页按照各自的分配和使用状态，可以被分为 <code>Clean</code> 和 <code>Dirty</code> 两类。</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/164042169161e54e?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>以上面的代码为例，申请一块长度为 80000 字节的内存空间，按照一页 16KB 来计算，就需要 6 页内存来存储。</p>
+<ul>
+<li>当这些内存页开辟出来的时候，它们都是 <code>Clean</code> 的</li>
+<li>当向处于第一页的内存写入数据时，第一页内存会变成 <code>Dirty</code></li>
+<li>当向处于最后一页的内存写入数据时，这一页也会变成 <code>Dirty</code></li>
+</ul>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640421aa92f210f?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<h3 id="内存映射文件"><a href="#内存映射文件" class="headerlink" title="内存映射文件"></a>内存映射文件</h3><p>当 App 访问一个文件时，系统内核会负责调度，将磁盘上的文件加载并映射到内存中。如果这是只读的文件，它所占用到的内存页是 <code>Clean</code> 的。</p>
+<p>如下图所示，一个 50KB 的图片被加载到内存中时，需要分配 4 页内存来存储。其中第四页中有 2KB 的空间会被用来存储这个图片的数据，剩余空间可能会被用来存储其它数据。</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640422064a09ba4?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<h3 id="典型app内存类型"><a href="#典型app内存类型" class="headerlink" title="典型app内存类型"></a>典型app内存类型</h3><p>当内存不足的时候，系统会按照一定策略来腾出更多空间供使用，比较常见的做法是将一部分低优先级的数据挪到磁盘上，这个操作称为 <code>Page Out</code>。之后当再次访问到这块数据的时候，系统会负责将它重新搬回内存空间中，这个操作称为 <code>Page In</code>。</p>
+<p>然而对于移动设备而言，频繁对磁盘进行IO操作会降低存储设备的寿命。从 iOS7 开始，系统开始采用压缩内存的办法来释放内存空间，被压缩的内存称为 <code>Compressed Memory</code>。下面依次介绍一下 iOS App 通常情况下的三种内存类型：<code>Clean Memory</code> 、<code>Dirty Memory</code>以及<code>Compressed Memory</code>。</p>
+<h4 id="Clean-Memory"><a href="#Clean-Memory" class="headerlink" title="Clean Memory"></a>Clean Memory</h4><p><code>Clean Memory</code> 是指那些可以用以 <code>Page Out</code> 的内存，包括已被加载到内存中的文件，或者是 App 所用到的 frameworks。每个 frameworks 都有 <code>_DATA_CONST</code> 段，当 App 在运行时使用到了某个 framework，它所对应的 <code>_DATA_CONST</code> 的内存就会由 Clean 变为 Dirty。</p>
+<h4 id="Dirty-Memory"><a href="#Dirty-Memory" class="headerlink" title="Dirty Memory"></a>Dirty Memory</h4><p><code>Dirty Memory</code> 是指那些被 App 写入过数据的内存，包括所有堆区的对象、图像解码缓冲区，同时，类似 <code>Clean memory</code>，也包括 App 所用到的 frameworks。每个 framework 都会有 <code>_DATA</code>段和 <code>_DATA_DIRTY</code> 段，它们的内存是 <code>Dirty</code> 的。</p>
+<p>值得注意的是，在使用 framework 的过程中会产生 <code>Dirty Memory</code>，使用单例或者全局初始化方法是减少 <code>Dirty Memory</code> 不错的方法，因为单例一旦创建就不会销毁，全局初始化方法会在 class 加载时执行。</p>
+<h4 id="Compressed-Memory"><a href="#Compressed-Memory" class="headerlink" title="Compressed Memory"></a>Compressed Memory</h4><p>当内存吃紧的时候，系统会将不使用的内存进行压缩，直到下一次访问的时候进行解压。</p>
+<p>例如，当我们使用 <code>Dictionary</code> 去缓存数据的时候，假设现在已经使用了 3 页内存，当不访问的时候可能会被压缩为 1 页，再次使用到时候又会解压成 3 页。</p>
+<h3 id="Memory-Warnings"><a href="#Memory-Warnings" class="headerlink" title="Memory Warnings"></a>Memory Warnings</h3><p>并非所有内存警告都是由 App 造成的，例如在内存较小的设备上，当你接听电话的时候也有可能发生内存警告。按照以往的习惯，你可能会在收到内存警告通知的时候去做一些释放内存的事情。然而内存压缩机制会使事情变得复杂。我们来看看这个例子：</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/164042449bd284b1?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>假设代码中的 <code>cache</code> 已被压缩过</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640424733a719c1?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>事实上，当你尝试去再次访问 cache 对象的时候，系统会先解压这块内存</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640424a1ee283d0?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>这个过程中内存使用会增加，在内存吃紧的时候，这并不是我们想要的。随后，当我们会执行大量工作去清空 cache，最终得到的内存空间和内存压缩的结果一样</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640424733a719c1?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>所以，相比以往的缓存手段，更加建议去调整策略，例如减少缓存使用，或者在收到内存警告的时候，将这类事情交由系统去处理。</p>
+<h3 id="Caching"><a href="#Caching" class="headerlink" title="Caching"></a>Caching</h3><p>我们对数据进行缓存的目的是想减少 CPU 的压力，但是过多的缓存又会占用过大的内存。由于内存压缩机制的存在，我们需要根据缓存数据大小以及重算这些数据的成本，在 CPU 和内存之间进行权衡。</p>
+<p>在一些需要缓存数据的场景下，可以考虑使用 <code>NSCache</code> 代替 <code>NSDictionary</code>，因为 <code>NSCache</code> 可以自动清理内存，在内存吃紧的时候会更加合理。</p>
+<h3 id="小结"><a href="#小结" class="headerlink" title="小结"></a>小结</h3><p>通常情况下，我们所说的内存占用是指 <code>Dirty Memory</code> 和 <code>Compressed Memory</code>，<code>Clean Memory</code> 不需要过多关心。</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640425425a38784?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>App 能使用比较多的内存空间，但是上限会根据设备不同而不同。Extension 能使用的最大内存则要低很多，所以当你在开发 Extension 的时候尤其要注意内存使用。当使用的内存超出限制的时候，系统会抛出 <code>EXC_RESOURCE_EXCEPTION</code> 异常。</p>
+<h2 id="分析内存占用工具"><a href="#分析内存占用工具" class="headerlink" title="分析内存占用工具"></a>分析内存占用工具</h2><h3 id="Xcode-Memory-Gauge"><a href="#Xcode-Memory-Gauge" class="headerlink" title="Xcode Memory Gauge"></a>Xcode Memory Gauge</h3><p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640425940d45833?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>在 Xcode 中，你可以通过 <code>Memory Gauge</code> 工具，很方便快速的查看 App 运行时的内存情况，包括内存最高占用、最低占用，以及在所有进程中的占用比例等。如果想要查看更详细的数据，就需要用到 <code>Instruments</code> 了。</p>
+<h3 id="Instruments"><a href="#Instruments" class="headerlink" title="Instruments"></a>Instruments</h3><p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640425b9de376b7?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>在 <code>Instruments</code> 中，你可以使用 <code>Allocations</code>、<code>Leaks</code>、<code>VM Tracker</code> 和 <code>Virtual Memory Trace</code> 对 App 进行多维度分析。</p>
+<h3 id="Debug-Debugger-Memory-Resource-Exceptions"><a href="#Debug-Debugger-Memory-Resource-Exceptions" class="headerlink" title="Debug Debugger-Memory Resource Exceptions"></a>Debug Debugger-Memory Resource Exceptions</h3><p>当你使用 Xcode 10 以前的版本进行调试时，在内存过大时，debug session 会直接终止，并且在控制台打印出异常。从 Xcode 10 开始，debugger 会自动捕获 <code>EXC_RESOURCE RESOURCE_TYPE_MEMORY</code> 异常，并断点在触发异常抛出的地方，十分方便定位问题。</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/164042608af528f6?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<h3 id="Xcode-Memory-Debugger"><a href="#Xcode-Memory-Debugger" class="headerlink" title="Xcode Memory Debugger"></a>Xcode Memory Debugger</h3><p><img src="https://user-gold-cdn.xitu.io/2018/6/15/16404263cec1a5e4?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>通过这个工具，可以很直观地查看内存中所有对象的内存使用情况，以及相互之间的依赖关系，对定位那些因为循环引用导致的内存泄露问题十分有帮助。</p>
+<p>你也可以点击 <code>File-&gt;Export Memory Graph</code> 将其导出为 <code>memgraph</code> 文件，在命令行中使用 <code>Developer Tool</code> 对其进行分析。使用这种方式，你可以在任何时候对过去某时的 App 内存使用进行分析。</p>
+<p>简单介绍一下相关的命令</p>
+<h4 id="vmmap-查看虚拟内存"><a href="#vmmap-查看虚拟内存" class="headerlink" title="vmmap - 查看虚拟内存"></a>vmmap - 查看虚拟内存</h4><p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640426bf2ee2c32?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>查看详细报告</p>
+<blockquote>
+<p>vmmap xx.memgraph</p>
+</blockquote>
+<p>查看摘要报告</p>
+<blockquote>
+<p>vmmap –summary xx.memgraph</p>
+</blockquote>
+<p>配合管道命令查看所有动态库的Ditry Pages的总和</p>
+<blockquote>
+<p>vmmap -pages xxx.memgraph | grep ‘.dylib’ | awk ‘{sum += $6} END { print “Total Dirty Pages:”sum}’</p>
+</blockquote>
+<p>只显示CG image相关的数据</p>
+<blockquote>
+<p>vmmap xx.memgraph | grep ‘CG image’</p>
+</blockquote>
+<p>更多使用方式请查看vmmap的文档</p>
+<blockquote>
+<p>man vmmap</p>
+</blockquote>
+<h4 id="leaks-查看泄漏的内存"><a href="#leaks-查看泄漏的内存" class="headerlink" title="leaks - 查看泄漏的内存"></a>leaks - 查看泄漏的内存</h4><p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640427078bb7082?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>查看是否有内存泄露</p>
+<blockquote>
+<p>leaks xx.memgraph</p>
+</blockquote>
+<p>查看某处内存的泄漏</p>
+<blockquote>
+<p>leaks –traceTree [内存地址] xx.memgraph</p>
+</blockquote>
+<p>更多使用方式请查看 leaks 的文档</p>
+<blockquote>
+<p>man leaks</p>
+</blockquote>
+<h4 id="heap-查看堆区内存"><a href="#heap-查看堆区内存" class="headerlink" title="heap - 查看堆区内存"></a>heap - 查看堆区内存</h4><p><img src="https://user-gold-cdn.xitu.io/2018/6/15/164042737dda0bc6?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>查看所有堆区对象的内存使用</p>
+<blockquote>
+<p>heap xx.memgraph</p>
+</blockquote>
+<p>默认情况下是按照对象数量进行排序，通常情况下它们不会造成什么内存问题。我们需要关心的是那些为数不多，却占用了大量内存的对象，这时候就可以增加参数 <code>-sortBySize</code>，按照内存占用大小顺序来查看所有堆区对象的内存使用</p>
+<blockquote>
+<p>heap xx.memgraph -sortBySize</p>
+</blockquote>
+<p>当确定是哪个类型的对象占用了太多内存之后，可以得到每个对象的内存地址</p>
+<blockquote>
+<p>heap xx.memgraph -addresses all | ‘XXBigData’</p>
+</blockquote>
+<p>更多使用方式请查看 heap 的文档</p>
+<blockquote>
+<p>man heap</p>
+</blockquote>
+<p>有了这些对象的内存地址之后，我们还需要另一样工具帮助我们做下一步分析。</p>
+<h4 id="Enabling-Malloc-Stack-Logging"><a href="#Enabling-Malloc-Stack-Logging" class="headerlink" title="Enabling Malloc Stack Logging"></a>Enabling Malloc Stack Logging</h4><p>在 <code>Product -&gt; Scheme -&gt; Edit Scheme -&gt; Diagnostics</code> 中，开启 <code>Malloc Stack</code> 功能，建议使用 <code>Live Allocations Only</code> 选项</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/16404276c0751a57?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>之后 lldb 会记录调试过程中对象创建的堆栈，配合 <code>malloc_history</code> 工具，就可以定位到那些占用了过大内存的对象是哪里创建的。</p>
+<h4 id="malloc-history-查看内存分配历史"><a href="#malloc-history-查看内存分配历史" class="headerlink" title="malloc_history - 查看内存分配历史"></a>malloc_history - 查看内存分配历史</h4><p><img src="https://user-gold-cdn.xitu.io/2018/6/15/16404279abc8d6df?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<blockquote>
+<p>malloc_history xx.memgraph [address]</p>
+</blockquote>
+<blockquote>
+<p>malloc_history xx.memgraph –fullStacks [address]</p>
+</blockquote>
+<p>更多使用方式请查看 malloc_history 的文档</p>
+<blockquote>
+<p>man malloc_history</p>
+</blockquote>
+<h3 id="选择哪个工具？"><a href="#选择哪个工具？" class="headerlink" title="选择哪个工具？"></a>选择哪个工具？</h3><p>上面讲述了那么多的分析工具，那我们应该选择哪种工具呢？苹果的工程师帮我们做了如下整理：</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640427c6bb55479?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>大家可以根据上图所示，根据不同的需要进行选择。</p>
+<h2 id="图片"><a href="#图片" class="headerlink" title="图片"></a>图片</h2><p>对于 iOS 系统而言，绝大部分场景下哪类数据占内存最多呢？当然是图片！需要注意的是，图片所占内存的大小与图片的尺寸有关，而不是图片的文件大小。</p>
+<p>例如：有一个 590KB 的图片，分辨率是 2048px <em> 1536px，它实际使用的内存不是 590KB，而是`2048 </em> 1536 * 4 = 12 MB`。。</p>
+<p>图片为什么会占用这么大的内存呢，这还要从图片在 iOS 上显示的原理说起，具体可移步到 WWDC 2018 Session 219：<a href="https://link.juejin.im/?target=https%3A%2F%2Fdeveloper.apple.com%2Fvideos%2Fplay%2Fwwdc2018%2F219%2F" target="_blank" rel="noopener">Image and Graphics Best Practices</a>，也可以直接阅读小伙伴前几天刚发布的文章 <a href="https://link.juejin.im/?target=https%3A%2F%2Fjuejin.im%2Fpost%2F5b1a7c2c5188257d5a30c820" target="_blank" rel="noopener">WWDC2018 图像最佳实践</a></p>
+<h3 id="图片的格式"><a href="#图片的格式" class="headerlink" title="图片的格式"></a>图片的格式</h3><ul>
+<li><p>sRGB：这个是目前比较通用的全色彩图像色域，每个像素占 4 个字节</p>
+</li>
+<li><p>Wide：每个像素占 8 个字节，相比 sRGB 能表示的颜色更多</p>
+</li>
+</ul>
+<p>还有占内存更小的格式：</p>
+<ul>
+<li><p>亮度和 alpha 8 格式：每像素 2 个字节，单色图像和 alpha，metal 着色器。</p>
+</li>
+<li><p>Alpha 8 格式：每个像素 1 个字节，用于单色图像，比 SRGB 小 75％</p>
+</li>
+</ul>
+<p>选择正确的格式可以减少了内存的使用。简单总结一下：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">一个字节：Alpha 8</span><br><span class="line">两个字节：亮度和alpha 8</span><br><span class="line">四个字节：SRGB</span><br><span class="line">八个字节：Wide 格式</span><br><span class="line">复制代码</span><br></pre></td></tr></table></figure>
+<p>那下一个话题来了，如何选择正确的格式呢？</p>
+<h3 id="选择正确的格式"><a href="#选择正确的格式" class="headerlink" title="选择正确的格式"></a>选择正确的格式</h3><p>简单的回答是：不需要你来选择格式，而是应该让格式选择你。是不是觉得一下子松了一口气？哈哈😆</p>
+<h4 id="用-UIGraphicsImageRenderer-代替-UIGraphicsBeginImageContextWithOptions"><a href="#用-UIGraphicsImageRenderer-代替-UIGraphicsBeginImageContextWithOptions" class="headerlink" title="用 UIGraphicsImageRenderer 代替 UIGraphicsBeginImageContextWithOptions"></a>用 UIGraphicsImageRenderer 代替 UIGraphicsBeginImageContextWithOptions</h4><p>使用 <code>UIGraphicsBeginImageContextWithOptions</code> 生成的图片，每个像素需要 4 个字节表示。建议使用 <code>UIGraphicsImageRenderer</code>，这个方法是从 iOS 10 引入，在 iOS 12 上会自动选择最佳的图像格式，可以减少很多内存。</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/164042805f87874e?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640428289ab7fb8?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p>另外，如果想修改颜色，可以直接修改 tintColor，不会有额外的内存开销。</p>
+<h4 id="Downsampling"><a href="#Downsampling" class="headerlink" title="Downsampling"></a>Downsampling</h4><p>当你缩小一幅图像的时候，会按照取平均值的办法把多个像素点变成一个像素点，这个过程称为 <code>Downsampling</code>。</p>
+<p>UIImage 在设置和调整大小的时候，需要将原始图像加压到内存中，然后对内部坐标空间做一系列转换，整个过程会消耗很多资源。我们可以使用 ImageIO，它可以直接读取图像大小和元数据信息，不会带来额外的内存开销。</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/164042861839e00d?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/16404288b324ee3c?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<h3 id="在后台时，对内存优化"><a href="#在后台时，对内存优化" class="headerlink" title="在后台时，对内存优化"></a>在后台时，对内存优化</h3><p>假设在 App 里展示了一张很大图片，当我们切换到后台去做其它的操作时，这个图片还在占用内存。我们应该考虑在合适的时机去回收这类占用过大的数据。</p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640428bbf71c2a3?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<p><img src="https://user-gold-cdn.xitu.io/2018/6/15/1640428dc90d1458?imageView2/0/w/1280/h/960/format/webp/ignore-error/1" alt></p>
+<h2 id="演示Demo"><a href="#演示Demo" class="headerlink" title="演示Demo"></a>演示Demo</h2><p>Demo主要是用实际例子讲述了上面的知识点，这里就不再重复讲解了，感兴趣的童鞋可以移步 <a href="https://link.juejin.im/?target=https%3A%2F%2Fdeveloper.apple.com%2Fvideos%2Fplay%2Fwwdc2018%2F416%2F" target="_blank" rel="noopener">iOS Memory Deep Dive</a></p>
+
+      
+    </div>
+    <footer class="article-footer">
+      <a data-url="https://tangzeng.github.io/2019/02/15/转载WWDC-2018：iOS-内存深入研究/" data-id="ck9ga54cu0003urvrpryitp2a" class="article-share-link">Share</a>
+      
+      
+    </footer>
+  </div>
+  
+    
+<nav id="article-nav">
+  
+    <a href="/2019/02/21/runloop/" id="article-nav-newer" class="article-nav-link-wrap">
+      <strong class="article-nav-caption">Newer</strong>
+      <div class="article-nav-title">
+        
+          RunLoop的理解
+        
+      </div>
+    </a>
+  
+  
+</nav>
+
+  
+</article>
+
+</section>
+        
+          <aside id="sidebar">
+  
+    
+
+  
+    
+
+  
+    
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Archives</h3>
+    <div class="widget">
+      <ul class="archive-list"><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/05/">May 2019</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/03/">March 2019</a></li><li class="archive-list-item"><a class="archive-list-link" href="/archives/2019/02/">February 2019</a></li></ul>
+    </div>
+  </div>
+
+
+  
+    
+  <div class="widget-wrap">
+    <h3 class="widget-title">Recent Posts</h3>
+    <div class="widget">
+      <ul>
+        
+          <li>
+            <a href="/2019/05/09/iOS 内存分配、管理和MLeakFinder源码分析/">iOS 内存分配、管理和泄漏检测</a>
+          </li>
+        
+          <li>
+            <a href="/2019/03/21/OC 关键字分析/">OC 关键字分析</a>
+          </li>
+        
+          <li>
+            <a href="/2019/02/21/runloop/">RunLoop的理解</a>
+          </li>
+        
+          <li>
+            <a href="/2019/02/15/转载WWDC-2018：iOS-内存深入研究/">转载 WWDC 2018：iOS 内存深入研究</a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+
+  
+</aside>
+        
+      </div>
+      <footer id="footer">
+  
+  <div class="outer">
+    <div id="footer-info" class="inner">
+      &copy; 2020 BIGGILL<br>
+      Powered by <a href="http://hexo.io/" target="_blank">Hexo</a>
+    </div>
+  </div>
+</footer>
+    </div>
+    <nav id="mobile-nav">
+  
+    <a href="/" class="mobile-nav-link">Home</a>
+  
+    <a href="/archives" class="mobile-nav-link">Archives</a>
+  
+</nav>
+    
+
+<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+
+  <link rel="stylesheet" href="/fancybox/jquery.fancybox.css">
+  <script src="/fancybox/jquery.fancybox.pack.js"></script>
+
+
+<script src="/js/script.js"></script>
+
+
+
+  </div>
+</body>
+</html>
